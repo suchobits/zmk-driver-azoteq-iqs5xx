@@ -255,24 +255,55 @@ static int iqs5xx_setup_device(const struct device *dev) {
     const struct iqs5xx_config *config = dev->config;
     struct iqs5xx_data *data = dev->data;
     int ret;
+    uint8_t value;
 
-    printk("*** IQS5XX: setup_device - SKIPPING ALL CONFIGURATION\n");
-    LOG_ERR(">>> MINIMAL setup_device - SKIPPING ALL CONFIGURATION");
-    LOG_ERR(">>> Just trying to poll with device defaults");
+    printk("*** IQS5XX: setup_device - QMK-style init\n");
+    LOG_INF("Starting QMK-style device setup");
 
-    // SKIP ALL CONFIGURATION - just try to use device as-is
-    // The TPS43 should have factory defaults that allow basic operation
+    // Step 1: Disable idle timeout to prevent low power modes (LP1/LP2)
+    // This is CRITICAL - without this, trackpad goes to sleep!
+    value = 255;  // No timeout
+    ret = iqs5xx_write_reg8(dev, IQS5XX_IDLE_MODE_TIMEOUT, value);
+    if (ret < 0) {
+        printk("*** IQS5XX: Failed to disable idle timeout: %d\n", ret);
+        LOG_ERR("Failed to disable idle timeout: %d", ret);
+        return ret;
+    }
+    printk("*** IQS5XX: Disabled idle timeout (no LP modes)\n");
+    LOG_INF("Disabled idle timeout");
 
-    // Only thing we might need: end comm window to start fresh
+    // Step 2: Enable REATI for continuous touch detection
+    uint8_t config0_value = IQS5XX_SETUP_COMPLETE | IQS5XX_REATI | IQS5XX_MANUAL_CONTROL;
+    ret = iqs5xx_write_reg8(dev, IQS5XX_SYSTEM_CONFIG_0, config0_value);
+    if (ret < 0) {
+        printk("*** IQS5XX: Failed to set system config 0: %d\n", ret);
+        LOG_ERR("Failed to set system config 0: %d", ret);
+        return ret;
+    }
+    printk("*** IQS5XX: Set SYSTEM_CONFIG_0: REATI + MANUAL_CONTROL\n");
+    LOG_INF("Configured system config 0");
+
+    // Step 3: Configure for streaming mode (not event mode) for polling
+    uint8_t config1_value = IQS5XX_TP_EVENT | IQS5XX_GESTURE_EVENT | IQS5XX_REATI_EVENT;
+    ret = iqs5xx_write_reg8(dev, IQS5XX_SYSTEM_CONFIG_1, config1_value);
+    if (ret < 0) {
+        printk("*** IQS5XX: Failed to set system config 1: %d\n", ret);
+        LOG_ERR("Failed to set system config 1: %d", ret);
+        return ret;
+    }
+    printk("*** IQS5XX: Set SYSTEM_CONFIG_1: streaming mode\n");
+    LOG_INF("Configured system config 1");
+
+    // End communication window
     ret = iqs5xx_end_comm_window(dev);
     if (ret < 0) {
-        printk("*** IQS5XX: Failed to end comm window: %d (ignoring)\n", ret);
-        LOG_ERR("Failed to end comm window: %d (ignoring)", ret);
-        // Don't return error - device might work anyway
+        printk("*** IQS5XX: Failed to end comm window: %d\n", ret);
+        LOG_ERR("Failed to end comm window: %d", ret);
+        return ret;
     }
 
-    printk("*** IQS5XX: setup_device complete - no configuration applied\n");
-    LOG_ERR(">>> setup_device complete - no configuration applied");
+    printk("*** IQS5XX: setup_device complete - QMK-style init done\n");
+    LOG_INF("Device setup complete");
     return 0;
 }
 

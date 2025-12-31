@@ -42,6 +42,10 @@
 #define IQS5XX_TOUCH_EVENT BIT(6)
 #define IQS5XX_PROX_EVENT BIT(7)
 
+// Power management
+#define IQS5XX_SYSTEM_CONTROL_1 0x0432
+#define IQS5XX_IDLE_MODE_TIMEOUT 0x0586
+
 // Filter settings register.
 #define IQS5XX_FILTER_SETTINGS 0x0632
 // Filter settings bits.
