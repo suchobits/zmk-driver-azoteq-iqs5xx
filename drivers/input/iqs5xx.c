@@ -241,13 +241,25 @@ static void iqs5xx_poll_timer_handler(struct k_timer *timer) {
 
 static int iqs5xx_setup_device(const struct device *dev) {
     const struct iqs5xx_config *config = dev->config;
+    struct iqs5xx_data *data = dev->data;
     int ret;
 
-    // Enable event mode and trackpad events.
-    ret = iqs5xx_write_reg8(dev, IQS5XX_SYSTEM_CONFIG_1,
-                            IQS5XX_EVENT_MODE | IQS5XX_TP_EVENT | IQS5XX_GESTURE_EVENT);
+    // Configure event mode based on polling vs interrupt mode
+    // Event mode requires RDY pin - use streaming mode for polling
+    uint8_t config1_value;
+    if (data->use_polling) {
+        // Streaming mode: EVENT_MODE disabled, just enable event types
+        config1_value = IQS5XX_TP_EVENT | IQS5XX_GESTURE_EVENT;
+        LOG_INF("Configuring for streaming mode (polling)");
+    } else {
+        // Event mode: requires RDY pin
+        config1_value = IQS5XX_EVENT_MODE | IQS5XX_TP_EVENT | IQS5XX_GESTURE_EVENT;
+        LOG_INF("Configuring for event mode (interrupt)");
+    }
+
+    ret = iqs5xx_write_reg8(dev, IQS5XX_SYSTEM_CONFIG_1, config1_value);
     if (ret < 0) {
-        LOG_ERR("Failed to configure event mode: %d", ret);
+        LOG_ERR("Failed to configure system config 1: %d", ret);
         return ret;
     }
 
