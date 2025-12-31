@@ -323,11 +323,13 @@ static int iqs5xx_setup_device(const struct device *dev) {
     }
 
     // Configure system settings.
-    ret = iqs5xx_write_reg8(dev, IQS5XX_SYSTEM_CONFIG_0, IQS5XX_SETUP_COMPLETE | IQS5XX_WDT);
+    // Disable watchdog timer to prevent device reset during polling
+    ret = iqs5xx_write_reg8(dev, IQS5XX_SYSTEM_CONFIG_0, IQS5XX_SETUP_COMPLETE);
     if (ret < 0) {
         LOG_ERR("Failed to configure system: %d", ret);
         return ret;
     }
+    LOG_INF("System configured without WDT - using polling mode");
 
     // End communication window.
     ret = iqs5xx_end_comm_window(dev);
