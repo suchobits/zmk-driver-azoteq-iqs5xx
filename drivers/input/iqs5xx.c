@@ -248,9 +248,9 @@ static int iqs5xx_setup_device(const struct device *dev) {
     // Event mode requires RDY pin - use streaming mode for polling
     uint8_t config1_value;
     if (data->use_polling) {
-        // Streaming mode: EVENT_MODE disabled, just enable event types
-        config1_value = IQS5XX_TP_EVENT | IQS5XX_GESTURE_EVENT;
-        LOG_INF("Configuring for streaming mode (polling)");
+        // Streaming mode: EVENT_MODE disabled, enable event types + REATI_EVENT
+        config1_value = IQS5XX_TP_EVENT | IQS5XX_GESTURE_EVENT | IQS5XX_REATI_EVENT;
+        LOG_INF("Configuring for streaming mode with REATI (polling)");
     } else {
         // Event mode: requires RDY pin
         config1_value = IQS5XX_EVENT_MODE | IQS5XX_TP_EVENT | IQS5XX_GESTURE_EVENT;
@@ -327,12 +327,12 @@ static int iqs5xx_setup_device(const struct device *dev) {
     }
 
     // Configure system settings.
-    // For polling mode: disable WDT and enable MANUAL_CONTROL to prevent auto-sleep
+    // For polling mode: enable MANUAL_CONTROL and REATI for continuous operation
     // For interrupt mode: just mark setup complete with WDT enabled
     uint8_t config0_value;
     if (data->use_polling) {
-        config0_value = IQS5XX_SETUP_COMPLETE | IQS5XX_MANUAL_CONTROL;
-        LOG_INF("System config: MANUAL_CONTROL enabled (polling mode)");
+        config0_value = IQS5XX_SETUP_COMPLETE | IQS5XX_MANUAL_CONTROL | IQS5XX_REATI;
+        LOG_INF("System config: MANUAL_CONTROL + REATI enabled (polling mode)");
     } else {
         config0_value = IQS5XX_SETUP_COMPLETE | IQS5XX_WDT;
         LOG_INF("System config: WDT enabled (interrupt mode)");
