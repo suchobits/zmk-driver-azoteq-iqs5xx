@@ -386,6 +386,12 @@ static int iqs5xx_init(const struct device *dev) {
         .stationary_threshold = DT_INST_PROP_OR(n, stationary_threshold, 5),                       \
     };                                                                                             \
     DEVICE_DT_INST_DEFINE(n, iqs5xx_init, NULL, &iqs5xx_data_##n, &iqs5xx_config_##n, POST_KERNEL, \
-                          CONFIG_INPUT_INIT_PRIORITY, NULL);
+                          CONFIG_INPUT_INIT_PRIORITY, NULL);                                              \
+    BUILD_ASSERT(1, "IQS5XX device " #n " instantiated");
 
 DT_INST_FOREACH_STATUS_OKAY(IQS5XX_INIT)
+
+// Compile-time check: ensure at least one IQS5XX device exists
+#if DT_NUM_INST_STATUS_OKAY(DT_DRV_COMPAT) == 0
+#warning "NO IQS5XX DEVICES FOUND IN DEVICE TREE!"
+#endif
