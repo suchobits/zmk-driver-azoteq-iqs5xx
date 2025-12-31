@@ -401,8 +401,20 @@ static int iqs5xx_init(const struct device *dev) {
         LOG_INF("IQS5xx using polling mode (no RDY GPIO available)");
     }
 
-    // Wait for device to be ready.
-    k_msleep(100);
+    // Extended initialization delay for devices without hardware reset
+    // The IQS5xx needs time to complete internal calibration after power-on
+    if (!config->reset_gpio.port) {
+        LOG_INF("No reset GPIO, using extended power-on delay");
+        k_msleep(500);  // Extended delay for stable power-on
+    } else {
+        k_msleep(100);
+    }
+
+    // Attempt to wake device from any potential sleep mode
+    // Send a dummy write to wake up the I2C interface
+    uint8_t wake_cmd[3] = {0x00, 0x00, 0x00};
+    i2c_write_dt(&config->i2c, wake_cmd, sizeof(wake_cmd));
+    k_msleep(50);  // Allow wake-up to complete
 
     // Setup device configuration.
     ret = iqs5xx_setup_device(dev);
