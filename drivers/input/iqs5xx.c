@@ -231,21 +231,34 @@ static void iqs5xx_work_handler(struct k_work *work) {
         }
 
         if (rel_x != 0 || rel_y != 0) {
+            printk("*** IQS5XX: About to report movement X=%d Y=%d\n", rel_x, rel_y);
+
             // Use K_NO_WAIT to avoid deadlock if HID queue is full
             ret = input_report_rel(dev, INPUT_REL_X, rel_x, false, K_NO_WAIT);
+            printk("*** IQS5XX: After report X, ret=%d\n", ret);
+
             if (ret < 0) {
                 LOG_WRN("Failed to report X movement: %d (queue full?)", ret);
             }
+
             ret = input_report_rel(dev, INPUT_REL_Y, rel_y, true, K_NO_WAIT);
+            printk("*** IQS5XX: After report Y, ret=%d\n", ret);
+
             if (ret < 0) {
                 LOG_WRN("Failed to report Y movement: %d (queue full?)", ret);
             }
+
+            printk("*** IQS5XX: Movement reporting complete\n");
         }
     }
 
+    printk("*** IQS5XX: After movement block, about to end_comm\n");
+
 end_comm:
+    printk("*** IQS5XX: At end_comm label, calling end_comm_window\n");
     // End communication window.
     iqs5xx_end_comm_window(dev);
+    printk("*** IQS5XX: After end_comm_window returned\n");
 
     // Debug: confirm work handler completes
     static uint32_t work_count = 0;
