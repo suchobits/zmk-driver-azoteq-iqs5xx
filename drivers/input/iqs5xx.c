@@ -233,6 +233,12 @@ static void iqs5xx_rdy_handler(const struct device *port, struct gpio_callback *
     k_work_submit(&data->work);
 }
 
+static void iqs5xx_poll_timer_handler(struct k_timer *timer) {
+    struct iqs5xx_data *data = CONTAINER_OF(timer, struct iqs5xx_data, poll_timer);
+
+    k_work_submit(&data->work);
+}
+
 static int iqs5xx_setup_device(const struct device *dev) {
     const struct iqs5xx_config *config = dev->config;
     int ret;
@@ -359,29 +365,40 @@ static int iqs5xx_init(const struct device *dev) {
         k_msleep(10);
     }
 
-    // Configure RDY GPIO.
-    if (!gpio_is_ready_dt(&config->rdy_gpio)) {
-        LOG_ERR("RDY GPIO not ready");
-        return -ENODEV;
-    }
+    // Configure RDY GPIO if available, otherwise use polling mode.
+    if (config->rdy_gpio.port != NULL) {
+        if (!gpio_is_ready_dt(&config->rdy_gpio)) {
+            LOG_ERR("RDY GPIO not ready");
+            return -ENODEV;
+        }
 
-    ret = gpio_pin_configure_dt(&config->rdy_gpio, GPIO_INPUT);
-    if (ret < 0) {
-        LOG_ERR("Failed to configure RDY GPIO: %d", ret);
-        return ret;
-    }
+        ret = gpio_pin_configure_dt(&config->rdy_gpio, GPIO_INPUT);
+        if (ret < 0) {
+            LOG_ERR("Failed to configure RDY GPIO: %d", ret);
+            return ret;
+        }
 
-    gpio_init_callback(&data->rdy_cb, iqs5xx_rdy_handler, BIT(config->rdy_gpio.pin));
-    ret = gpio_add_callback(config->rdy_gpio.port, &data->rdy_cb);
-    if (ret < 0) {
-        LOG_ERR("Failed to add RDY callback: %d", ret);
-        return ret;
-    }
+        gpio_init_callback(&data->rdy_cb, iqs5xx_rdy_handler, BIT(config->rdy_gpio.pin));
+        ret = gpio_add_callback(config->rdy_gpio.port, &data->rdy_cb);
+        if (ret < 0) {
+            LOG_ERR("Failed to add RDY callback: %d", ret);
+            return ret;
+        }
 
-    ret = gpio_pin_interrupt_configure_dt(&config->rdy_gpio, GPIO_INT_EDGE_RISING);
-    if (ret < 0) {
-        LOG_ERR("Failed to configure RDY interrupt: %d", ret);
-        return ret;
+        ret = gpio_pin_interrupt_configure_dt(&config->rdy_gpio, GPIO_INT_EDGE_RISING);
+        if (ret < 0) {
+            LOG_ERR("Failed to configure RDY interrupt: %d", ret);
+            return ret;
+        }
+
+        data->use_polling = false;
+        LOG_INF("IQS5xx using interrupt mode (RDY GPIO)");
+    } else {
+        // No RDY GPIO available, use polling mode
+        k_timer_init(&data->poll_timer, iqs5xx_poll_timer_handler, NULL);
+        k_timer_start(&data->poll_timer, K_MSEC(10), K_MSEC(10)); // Poll every 10ms
+        data->use_polling = true;
+        LOG_INF("IQS5xx using polling mode (no RDY GPIO available)");
     }
 
     // Wait for device to be ready.
@@ -405,7 +422,7 @@ static int iqs5xx_init(const struct device *dev) {
     static struct iqs5xx_data iqs5xx_data_##n;                                                     \
     static const struct iqs5xx_config iqs5xx_config_##n = {                                        \
         .i2c = I2C_DT_SPEC_INST_GET(n),                                                            \
-        .rdy_gpio = GPIO_DT_SPEC_INST_GET(n, rdy_gpios),                                           \
+        .rdy_gpio = GPIO_DT_SPEC_INST_GET_OR(n, rdy_gpios, {0}),                                   \
         .reset_gpio = GPIO_DT_SPEC_INST_GET_OR(n, reset_gpios, {0}),                               \
         .one_finger_tap = DT_INST_PROP(n, one_finger_tap),                                         \
         .press_and_hold = DT_INST_PROP(n, press_and_hold),                                         \

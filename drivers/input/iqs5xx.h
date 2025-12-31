@@ -142,8 +142,10 @@ struct iqs5xx_data {
     struct gpio_callback rdy_cb;
     struct k_work work;
     struct k_work_delayable button_release_work;
+    struct k_timer poll_timer;  // For polling mode when RDY GPIO is not available
     // TODO: Pack flags into a bitfield to save space.
     bool initialized;
+    bool use_polling;  // Flag to indicate polling mode vs interrupt mode
     // Flag to indicate if the button was pressed in a previous cycle.
     uint8_t buttons_pressed;
     bool active_hold;
