@@ -397,11 +397,12 @@ static int iqs5xx_init(const struct device *dev) {
     }
 
     // Extended initialization delay for devices without hardware reset
-    // The IQS5xx needs time to complete internal calibration after power-on
+    // The IQS5XX needs time to complete internal calibration after power-on
+    // TPS43 takes ~2 seconds to become responsive based on testing
     if (!config->reset_gpio.port) {
-        printk("*** IQS5XX: No reset GPIO, using extended power-on delay\n");
-        LOG_INF("No reset GPIO, using extended power-on delay");
-        k_msleep(500);  // Extended delay for stable power-on
+        printk("*** IQS5XX: No reset GPIO, waiting 2.5s for device wake-up\n");
+        LOG_INF("No reset GPIO, using extended power-on delay (2.5s)");
+        k_msleep(2500);  // Wait for device to become fully responsive
     } else {
         k_msleep(100);
     }
