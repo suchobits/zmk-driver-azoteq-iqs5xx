@@ -101,8 +101,11 @@ static void iqs5xx_work_handler(struct k_work *work) {
     }
 
     success_count++;
-    printk("*** IQS5XX: Read SUCCESS! sys_info_0=0x%02x (total: %u)\n",
-           sys_info_0, success_count);
+    // Only print first success and then every 100th to avoid flooding console
+    if (success_count == 1 || success_count % 100 == 0) {
+        printk("*** IQS5XX: Read SUCCESS! sys_info_0=0x%02x (total: %u)\n",
+               sys_info_0, success_count);
+    }
 
     ret = iqs5xx_read_reg8(dev, IQS5XX_SYSTEM_INFO_1, &sys_info_1);
     if (ret < 0) {
