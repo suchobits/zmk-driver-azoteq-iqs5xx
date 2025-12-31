@@ -85,13 +85,24 @@ static void iqs5xx_work_handler(struct k_work *work) {
     const struct iqs5xx_config *config = dev->config;
     uint8_t sys_info_0, sys_info_1, gesture_events_0, gesture_events_1, num_fingers;
     int ret;
+    static uint32_t success_count = 0;
+    static uint32_t fail_count = 0;
 
     // Read system info registers.
     ret = iqs5xx_read_reg8(dev, IQS5XX_SYSTEM_INFO_0, &sys_info_0);
     if (ret < 0) {
+        fail_count++;
+        if (fail_count % 20 == 1) {  // Print every 20th failure (once per second)
+            printk("*** IQS5XX: Read FAILED (total failures: %u, successes: %u)\n",
+                   fail_count, success_count);
+        }
         LOG_ERR("Failed to read system info 0: %d", ret);
         goto end_comm;
     }
+
+    success_count++;
+    printk("*** IQS5XX: Read SUCCESS! sys_info_0=0x%02x (total: %u)\n",
+           sys_info_0, success_count);
 
     ret = iqs5xx_read_reg8(dev, IQS5XX_SYSTEM_INFO_1, &sys_info_1);
     if (ret < 0) {
