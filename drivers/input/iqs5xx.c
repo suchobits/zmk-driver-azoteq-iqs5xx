@@ -85,14 +85,6 @@ static void iqs5xx_work_handler(struct k_work *work) {
     uint8_t sys_info_0, sys_info_1, gesture_events_0, gesture_events_1, num_fingers;
     int ret;
 
-    // Wake device from sleep if needed (send dummy byte to address 0x00)
-    // Many I2C sensors need this to wake from low-power mode
-    if (data->use_polling) {
-        uint8_t wake_byte = 0x00;
-        i2c_write_dt(&config->i2c, &wake_byte, 1);
-        k_usleep(100);  // Brief wake-up delay (100 microseconds)
-    }
-
     // Read system info registers.
     ret = iqs5xx_read_reg8(dev, IQS5XX_SYSTEM_INFO_0, &sys_info_0);
     if (ret < 0) {
@@ -405,10 +397,11 @@ static int iqs5xx_init(const struct device *dev) {
         LOG_INF("IQS5xx using interrupt mode (RDY GPIO)");
     } else {
         // No RDY GPIO available, use polling mode
+        // Use 50ms interval (20Hz) to reduce I2C bus congestion
         k_timer_init(&data->poll_timer, iqs5xx_poll_timer_handler, NULL);
-        k_timer_start(&data->poll_timer, K_MSEC(10), K_MSEC(10)); // Poll every 10ms
+        k_timer_start(&data->poll_timer, K_MSEC(50), K_MSEC(50)); // Poll every 50ms
         data->use_polling = true;
-        LOG_INF("IQS5xx using polling mode (no RDY GPIO available)");
+        LOG_INF("IQS5xx using polling mode (no RDY GPIO available, 20Hz)");
     }
 
     // Extended initialization delay for devices without hardware reset
