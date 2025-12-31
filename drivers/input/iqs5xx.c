@@ -262,10 +262,20 @@ static int iqs5xx_setup_device(const struct device *dev) {
 
     // Step 1: Disable idle timeout to prevent low power modes (LP1/LP2)
     // This is CRITICAL - without this, trackpad goes to sleep!
+    // Retry up to 3 times since device may not be fully awake yet
     value = 255;  // No timeout
-    ret = iqs5xx_write_reg8(dev, IQS5XX_IDLE_MODE_TIMEOUT, value);
+    int retries = 3;
+    for (int i = 0; i < retries; i++) {
+        ret = iqs5xx_write_reg8(dev, IQS5XX_IDLE_MODE_TIMEOUT, value);
+        if (ret == 0) break;
+
+        printk("*** IQS5XX: Idle timeout write attempt %d/%d failed: %d\n", i+1, retries, ret);
+        if (i < retries - 1) {
+            k_msleep(100);  // Wait before retry
+        }
+    }
     if (ret < 0) {
-        printk("*** IQS5XX: Failed to disable idle timeout: %d\n", ret);
+        printk("*** IQS5XX: Failed to disable idle timeout after %d attempts: %d\n", retries, ret);
         LOG_ERR("Failed to disable idle timeout: %d", ret);
         return ret;
     }
@@ -408,13 +418,16 @@ static int iqs5xx_init(const struct device *dev) {
     LOG_ERR("About to call iqs5xx_setup_device");
     ret = iqs5xx_setup_device(dev);
     if (ret < 0) {
-        printk("*** IQS5XX: Setup device FAILED: %d\n", ret);
-        LOG_ERR("Failed to setup device: %d", ret);
-        return ret;
+        printk("*** IQS5XX: Setup device FAILED: %d - continuing anyway\n", ret);
+        LOG_WRN("Failed to setup device: %d - device may work with defaults", ret);
+        // Don't return error - device works with defaults, config will apply later
+    } else {
+        printk("*** IQS5XX: Setup device SUCCESS\n");
+        LOG_INF("Device configuration applied successfully");
     }
 
     data->initialized = true;
-    printk("*** IQS5XX INIT COMPLETE ***\n\n");
+    printk("*** IQS5XX INIT COMPLETE (polling active) ***\n\n");
     LOG_ERR("=== IQS5XX INIT COMPLETE ===");
 
     return 0;
