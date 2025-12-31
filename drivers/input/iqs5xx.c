@@ -85,6 +85,14 @@ static void iqs5xx_work_handler(struct k_work *work) {
     uint8_t sys_info_0, sys_info_1, gesture_events_0, gesture_events_1, num_fingers;
     int ret;
 
+    // Wake device from sleep if needed (send dummy byte to address 0x00)
+    // Many I2C sensors need this to wake from low-power mode
+    if (data->use_polling) {
+        uint8_t wake_byte = 0x00;
+        i2c_write_dt(&config->i2c, &wake_byte, 1);
+        k_usleep(100);  // Brief wake-up delay (100 microseconds)
+    }
+
     // Read system info registers.
     ret = iqs5xx_read_reg8(dev, IQS5XX_SYSTEM_INFO_0, &sys_info_0);
     if (ret < 0) {
