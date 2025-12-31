@@ -246,6 +246,13 @@ static void iqs5xx_work_handler(struct k_work *work) {
 end_comm:
     // End communication window.
     iqs5xx_end_comm_window(dev);
+
+    // Debug: confirm work handler completes
+    static uint32_t work_count = 0;
+    work_count++;
+    if (work_count % 100 == 0 || work_count < 5) {
+        printk("*** IQS5XX: Work handler completed (count: %u)\n", work_count);
+    }
 }
 
 static void iqs5xx_rdy_handler(const struct device *port, struct gpio_callback *cb,
@@ -257,6 +264,12 @@ static void iqs5xx_rdy_handler(const struct device *port, struct gpio_callback *
 
 static void iqs5xx_poll_timer_handler(struct k_timer *timer) {
     struct iqs5xx_data *data = CONTAINER_OF(timer, struct iqs5xx_data, poll_timer);
+    static uint32_t timer_count = 0;
+
+    timer_count++;
+    if (timer_count % 100 == 0 || timer_count < 5) {
+        printk("*** IQS5XX: Timer fired (count: %u)\n", timer_count);
+    }
 
     k_work_submit(&data->work);
 }
