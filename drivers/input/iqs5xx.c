@@ -260,12 +260,10 @@ end_comm:
     iqs5xx_end_comm_window(dev);
     printk("*** IQS5XX: After end_comm_window returned\n");
 
-    // Debug: confirm work handler completes
+    // Debug: ALWAYS print to confirm work handler returns
     static uint32_t work_count = 0;
     work_count++;
-    if (work_count % 100 == 0 || work_count < 5) {
-        printk("*** IQS5XX: Work handler completed (count: %u)\n", work_count);
-    }
+    printk("*** IQS5XX: Work handler EXITING (count: %u)\n", work_count);
 }
 
 static void iqs5xx_rdy_handler(const struct device *port, struct gpio_callback *cb,
@@ -280,9 +278,8 @@ static void iqs5xx_poll_timer_handler(struct k_timer *timer) {
     static uint32_t timer_count = 0;
 
     timer_count++;
-    if (timer_count % 100 == 0 || timer_count < 5) {
-        printk("*** IQS5XX: Timer fired (count: %u)\n", timer_count);
-    }
+    // ALWAYS print to see if timer keeps firing
+    printk("*** IQS5XX: Timer FIRE (count: %u)\n", timer_count);
 
     k_work_submit(&data->work);
 }
