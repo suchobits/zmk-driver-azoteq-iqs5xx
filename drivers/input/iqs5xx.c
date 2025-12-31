@@ -359,10 +359,14 @@ static int iqs5xx_init(const struct device *dev) {
     struct iqs5xx_data *data = dev->data;
     int ret;
 
+    LOG_ERR("=== IQS5XX INIT STARTING ===");
+
     if (!i2c_is_ready_dt(&config->i2c)) {
         LOG_ERR("I2C device not ready");
         return -ENODEV;
     }
+
+    LOG_ERR("I2C device is ready");
 
     data->dev = dev;
     k_work_init(&data->work, iqs5xx_work_handler);
@@ -441,6 +445,7 @@ static int iqs5xx_init(const struct device *dev) {
     k_msleep(50);  // Allow wake-up to complete
 
     // Setup device configuration.
+    LOG_ERR("About to call iqs5xx_setup_device");
     ret = iqs5xx_setup_device(dev);
     if (ret < 0) {
         LOG_ERR("Failed to setup device: %d", ret);
@@ -448,7 +453,7 @@ static int iqs5xx_init(const struct device *dev) {
     }
 
     data->initialized = true;
-    LOG_INF("IQS5xx trackpad initialized");
+    LOG_ERR("=== IQS5XX INIT COMPLETE ===");
 
     return 0;
 }
