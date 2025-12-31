@@ -244,113 +244,20 @@ static int iqs5xx_setup_device(const struct device *dev) {
     struct iqs5xx_data *data = dev->data;
     int ret;
 
-    // Configure event mode based on polling vs interrupt mode
-    // Event mode requires RDY pin - use streaming mode for polling
-    uint8_t config1_value;
-    if (data->use_polling) {
-        // Streaming mode: EVENT_MODE disabled, enable event types + REATI_EVENT
-        config1_value = IQS5XX_TP_EVENT | IQS5XX_GESTURE_EVENT | IQS5XX_REATI_EVENT;
-        LOG_INF("Configuring for streaming mode with REATI (polling)");
-    } else {
-        // Event mode: requires RDY pin
-        config1_value = IQS5XX_EVENT_MODE | IQS5XX_TP_EVENT | IQS5XX_GESTURE_EVENT;
-        LOG_INF("Configuring for event mode (interrupt)");
-    }
+    LOG_ERR(">>> MINIMAL setup_device - SKIPPING ALL CONFIGURATION");
+    LOG_ERR(">>> Just trying to poll with device defaults");
 
-    ret = iqs5xx_write_reg8(dev, IQS5XX_SYSTEM_CONFIG_1, config1_value);
-    if (ret < 0) {
-        LOG_ERR("Failed to configure system config 1: %d", ret);
-        return ret;
-    }
+    // SKIP ALL CONFIGURATION - just try to use device as-is
+    // The TPS43 should have factory defaults that allow basic operation
 
-    ret = iqs5xx_write_reg8(dev, IQS5XX_BOTTOM_BETA, config->bottom_beta);
-    if (ret < 0) {
-        LOG_ERR("Failed to set bottom beta: %d", ret);
-        return ret;
-    }
-
-    ret = iqs5xx_write_reg8(dev, IQS5XX_STATIONARY_THRESH, config->stationary_threshold);
-    if (ret < 0) {
-        LOG_ERR("Failed to set bottom stationary threshold: %d", ret);
-        return ret;
-    }
-
-    // TODO: Expose these through dts bindings.
-    // Set filter settings with:
-    // - IIR filter enabled
-    // - MAV filter enabled
-    // - IIR select disabled (dynamic IIR)
-    // - ALP count filter enabled
-    ret = iqs5xx_write_reg8(dev, IQS5XX_FILTER_SETTINGS,
-                            IQS5XX_IIR_FILTER | IQS5XX_MAV_FILTER | IQS5XX_ALP_COUNT_FILTER);
-    if (ret < 0) {
-        LOG_ERR("Failed to configure filter settings: %d", ret);
-        return ret;
-    }
-
-    uint8_t single_finger_gestures = 0;
-    single_finger_gestures |= config->one_finger_tap ? IQS5XX_SINGLE_TAP : 0;
-    single_finger_gestures |= config->press_and_hold ? IQS5XX_PRESS_AND_HOLD : 0;
-    // Configure single finger gestures.
-    ret = iqs5xx_write_reg8(dev, IQS5XX_SINGLE_FINGER_GESTURES_CONF, single_finger_gestures);
-    if (ret < 0) {
-        LOG_ERR("Failed to configure single finger gestures: %d", ret);
-        return ret;
-    }
-
-    // Configure the hold time for the press and hold gesture.
-    ret = iqs5xx_write_reg16(dev, IQS5XX_HOLD_TIME, config->press_and_hold_time);
-    if (ret < 0) {
-        LOG_ERR("Failed to configure the hold time: %d", ret);
-        return ret;
-    }
-
-    uint8_t two_finger_gestures = 0;
-    two_finger_gestures |= config->two_finger_tap ? IQS5XX_TWO_FINGER_TAP : 0;
-    two_finger_gestures |= config->scroll ? IQS5XX_SCROLL : 0;
-    // Configure multi finger gestures.
-    ret = iqs5xx_write_reg8(dev, IQS5XX_MULTI_FINGER_GESTURES_CONF, two_finger_gestures);
-    if (ret < 0) {
-        LOG_ERR("Failed to configure multi finger gestures: %d", ret);
-        return ret;
-    }
-
-    // Configure axes.
-    uint8_t xy_config = 0;
-    xy_config |= config->flip_x ? IQS5XX_FLIP_X : 0;
-    xy_config |= config->flip_y ? IQS5XX_FLIP_Y : 0;
-    xy_config |= config->switch_xy ? IQS5XX_SWITCH_XY_AXIS : 0;
-    ret = iqs5xx_write_reg8(dev, IQS5XX_XY_CONFIG_0, xy_config);
-    if (ret < 0) {
-        LOG_ERR("Failed to configure axes: %d", ret);
-        return ret;
-    }
-
-    // Configure system settings.
-    // For polling mode: enable MANUAL_CONTROL and REATI for continuous operation
-    // For interrupt mode: just mark setup complete with WDT enabled
-    uint8_t config0_value;
-    if (data->use_polling) {
-        config0_value = IQS5XX_SETUP_COMPLETE | IQS5XX_MANUAL_CONTROL | IQS5XX_REATI;
-        LOG_INF("System config: MANUAL_CONTROL + REATI enabled (polling mode)");
-    } else {
-        config0_value = IQS5XX_SETUP_COMPLETE | IQS5XX_WDT;
-        LOG_INF("System config: WDT enabled (interrupt mode)");
-    }
-
-    ret = iqs5xx_write_reg8(dev, IQS5XX_SYSTEM_CONFIG_0, config0_value);
-    if (ret < 0) {
-        LOG_ERR("Failed to configure system: %d", ret);
-        return ret;
-    }
-
-    // End communication window.
+    // Only thing we might need: end comm window to start fresh
     ret = iqs5xx_end_comm_window(dev);
     if (ret < 0) {
-        LOG_ERR("Failed to end comm window during initialization: %d", ret);
-        return ret;
+        LOG_ERR("Failed to end comm window: %d (ignoring)", ret);
+        // Don't return error - device might work anyway
     }
 
+    LOG_ERR(">>> setup_device complete - no configuration applied");
     return 0;
 }
 
