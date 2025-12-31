@@ -13,6 +13,7 @@
 #include <zephyr/input/input.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/printk.h>
 
 #include "iqs5xx.h"
 
@@ -244,6 +245,7 @@ static int iqs5xx_setup_device(const struct device *dev) {
     struct iqs5xx_data *data = dev->data;
     int ret;
 
+    printk("*** IQS5XX: setup_device - SKIPPING ALL CONFIGURATION\n");
     LOG_ERR(">>> MINIMAL setup_device - SKIPPING ALL CONFIGURATION");
     LOG_ERR(">>> Just trying to poll with device defaults");
 
@@ -253,10 +255,12 @@ static int iqs5xx_setup_device(const struct device *dev) {
     // Only thing we might need: end comm window to start fresh
     ret = iqs5xx_end_comm_window(dev);
     if (ret < 0) {
+        printk("*** IQS5XX: Failed to end comm window: %d (ignoring)\n", ret);
         LOG_ERR("Failed to end comm window: %d (ignoring)", ret);
         // Don't return error - device might work anyway
     }
 
+    printk("*** IQS5XX: setup_device complete - no configuration applied\n");
     LOG_ERR(">>> setup_device complete - no configuration applied");
     return 0;
 }
@@ -266,13 +270,16 @@ static int iqs5xx_init(const struct device *dev) {
     struct iqs5xx_data *data = dev->data;
     int ret;
 
+    printk("\n\n*** IQS5XX INIT STARTING ***\n");
     LOG_ERR("=== IQS5XX INIT STARTING ===");
 
     if (!i2c_is_ready_dt(&config->i2c)) {
+        printk("*** IQS5XX: I2C device not ready\n");
         LOG_ERR("I2C device not ready");
         return -ENODEV;
     }
 
+    printk("*** IQS5XX: I2C device is ready\n");
     LOG_ERR("I2C device is ready");
 
     data->dev = dev;
@@ -330,6 +337,7 @@ static int iqs5xx_init(const struct device *dev) {
     } else {
         // No RDY GPIO available, use polling mode
         // Use 50ms interval (20Hz) to reduce I2C bus congestion
+        printk("*** IQS5XX: No RDY GPIO, entering polling mode\n");
         k_timer_init(&data->poll_timer, iqs5xx_poll_timer_handler, NULL);
         k_timer_start(&data->poll_timer, K_MSEC(50), K_MSEC(50)); // Poll every 50ms
         data->use_polling = true;
@@ -339,6 +347,7 @@ static int iqs5xx_init(const struct device *dev) {
     // Extended initialization delay for devices without hardware reset
     // The IQS5xx needs time to complete internal calibration after power-on
     if (!config->reset_gpio.port) {
+        printk("*** IQS5XX: No reset GPIO, using extended power-on delay\n");
         LOG_INF("No reset GPIO, using extended power-on delay");
         k_msleep(500);  // Extended delay for stable power-on
     } else {
@@ -347,19 +356,23 @@ static int iqs5xx_init(const struct device *dev) {
 
     // Attempt to wake device from any potential sleep mode
     // Send a dummy write to wake up the I2C interface
+    printk("*** IQS5XX: Sending wake command\n");
     uint8_t wake_cmd[3] = {0x00, 0x00, 0x00};
     i2c_write_dt(&config->i2c, wake_cmd, sizeof(wake_cmd));
     k_msleep(50);  // Allow wake-up to complete
 
     // Setup device configuration.
+    printk("*** IQS5XX: About to call setup_device\n");
     LOG_ERR("About to call iqs5xx_setup_device");
     ret = iqs5xx_setup_device(dev);
     if (ret < 0) {
+        printk("*** IQS5XX: Setup device FAILED: %d\n", ret);
         LOG_ERR("Failed to setup device: %d", ret);
         return ret;
     }
 
     data->initialized = true;
+    printk("*** IQS5XX INIT COMPLETE ***\n\n");
     LOG_ERR("=== IQS5XX INIT COMPLETE ===");
 
     return 0;
