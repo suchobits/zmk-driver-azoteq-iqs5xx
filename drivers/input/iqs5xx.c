@@ -71,7 +71,7 @@ static void iqs5xx_button_release_work_handler(struct k_work *work) {
     for (int i = 0; i < 3; i++) {
         LOG_INF("Releasing synthetic button");
         if (data->buttons_pressed & BIT(i)) {
-            input_report_key(data->dev, INPUT_BTN_0 + i, 0, true, K_FOREVER);
+            input_report_key(data->dev, INPUT_BTN_0 + i, 0, true, K_NO_WAIT);
             // Turn off the bit.
             // NOTE: This is a potential race.
             data->buttons_pressed &= ~BIT(i);
@@ -175,18 +175,18 @@ static void iqs5xx_work_handler(struct k_work *work) {
     // sync to ensure that the input subsystem processes things in order.
     if (hold_became_active) {
         LOG_INF("Hold became active");
-        input_report_key(dev, LEFT_BUTTON_CODE, 1, true, K_FOREVER);
+        input_report_key(dev, LEFT_BUTTON_CODE, 1, true, K_NO_WAIT);
         data->active_hold = true;
     } else if (hold_released) {
         LOG_INF("Hold became inactive");
-        input_report_key(dev, LEFT_BUTTON_CODE, 0, true, K_FOREVER);
+        input_report_key(dev, LEFT_BUTTON_CODE, 0, true, K_NO_WAIT);
         data->active_hold = false;
     } else if (button_pressed) {
         // Cancel any pending release.
         k_work_cancel_delayable(&data->button_release_work);
 
         // Press the button immediately.
-        input_report_key(dev, button_code, 1, true, K_FOREVER);
+        input_report_key(dev, button_code, 1, true, K_NO_WAIT);
         data->buttons_pressed |= BIT(button_code - INPUT_BTN_0);
 
         // Schedule release after 100ms.
@@ -205,7 +205,7 @@ static void iqs5xx_work_handler(struct k_work *work) {
             data->scroll_x_acc += rel_x;
             if (abs(data->scroll_x_acc) >= scroll_div) {
                 input_report_rel(dev, INPUT_REL_HWHEEL, data->scroll_x_acc / scroll_div, true,
-                                K_FOREVER);
+                                K_NO_WAIT);
                 data->scroll_x_acc %= scroll_div;
             }
             goto end_comm;
@@ -217,7 +217,7 @@ static void iqs5xx_work_handler(struct k_work *work) {
             data->scroll_y_acc += rel_y;
             if (abs(data->scroll_y_acc) >= scroll_div) {
                 input_report_rel(dev, INPUT_REL_WHEEL, data->scroll_y_acc / scroll_div, true,
-                                 K_FOREVER);
+                                 K_NO_WAIT);
                 data->scroll_y_acc %= scroll_div;
             }
 
@@ -231,8 +231,15 @@ static void iqs5xx_work_handler(struct k_work *work) {
         }
 
         if (rel_x != 0 || rel_y != 0) {
-            input_report_rel(dev, INPUT_REL_X, rel_x, false, K_FOREVER);
-            input_report_rel(dev, INPUT_REL_Y, rel_y, true, K_FOREVER);
+            // Use K_NO_WAIT to avoid deadlock if HID queue is full
+            ret = input_report_rel(dev, INPUT_REL_X, rel_x, false, K_NO_WAIT);
+            if (ret < 0) {
+                LOG_WRN("Failed to report X movement: %d (queue full?)", ret);
+            }
+            ret = input_report_rel(dev, INPUT_REL_Y, rel_y, true, K_NO_WAIT);
+            if (ret < 0) {
+                LOG_WRN("Failed to report Y movement: %d (queue full?)", ret);
+            }
         }
     }
 
