@@ -327,13 +327,22 @@ static int iqs5xx_setup_device(const struct device *dev) {
     }
 
     // Configure system settings.
-    // Disable watchdog timer to prevent device reset during polling
-    ret = iqs5xx_write_reg8(dev, IQS5XX_SYSTEM_CONFIG_0, IQS5XX_SETUP_COMPLETE);
+    // For polling mode: disable WDT and enable MANUAL_CONTROL to prevent auto-sleep
+    // For interrupt mode: just mark setup complete with WDT enabled
+    uint8_t config0_value;
+    if (data->use_polling) {
+        config0_value = IQS5XX_SETUP_COMPLETE | IQS5XX_MANUAL_CONTROL;
+        LOG_INF("System config: MANUAL_CONTROL enabled (polling mode)");
+    } else {
+        config0_value = IQS5XX_SETUP_COMPLETE | IQS5XX_WDT;
+        LOG_INF("System config: WDT enabled (interrupt mode)");
+    }
+
+    ret = iqs5xx_write_reg8(dev, IQS5XX_SYSTEM_CONFIG_0, config0_value);
     if (ret < 0) {
         LOG_ERR("Failed to configure system: %d", ret);
         return ret;
     }
-    LOG_INF("System configured without WDT - using polling mode");
 
     // End communication window.
     ret = iqs5xx_end_comm_window(dev);
