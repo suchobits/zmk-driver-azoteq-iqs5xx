@@ -231,6 +231,14 @@ static void iqs5xx_work_handler(struct k_work *work) {
         }
 
         if (rel_x != 0 || rel_y != 0) {
+            // Apply axis flipping if configured
+            if (config->flip_x) {
+                rel_x *= -1;
+            }
+            if (config->flip_y) {
+                rel_y *= -1;
+            }
+
             printk("*** IQS5XX: About to report movement X=%d Y=%d\n", rel_x, rel_y);
 
             // Use K_NO_WAIT to avoid deadlock if HID queue is full
