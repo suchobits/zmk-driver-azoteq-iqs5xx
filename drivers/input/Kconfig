@@ -17,4 +17,13 @@ config INPUT_AZOTEQ_IQS5XX_INIT_PRIORITY
       Driver initialization priority for the IQS5xx driver.
       Lower values initialize earlier.
 
+config INPUT_AZOTEQ_IQS5XX_POLL_INTERVAL_MS
+    int "Polling interval in ms when rdy-gpios is not defined"
+    default 10
+    help
+      When the rdy-gpios pin is not wired (e.g. HolyKeebs modules that
+      handle RDY internally), the driver falls back to polling the
+      trackpad over I2C at this interval. Lower values are more
+      responsive but use more CPU/power. 10ms ≈ 100 Hz.
+
 endif # INPUT_AZOTEQ_IQS5XX

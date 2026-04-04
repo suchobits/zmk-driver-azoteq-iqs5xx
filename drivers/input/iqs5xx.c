@@ -233,15 +233,28 @@ static void iqs5xx_rdy_handler(const struct device *port, struct gpio_callback *
     k_work_submit(&data->work);
 }
 
+static void iqs5xx_poll_handler(struct k_work *work) {
+    struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+    struct iqs5xx_data *data = CONTAINER_OF(dwork, struct iqs5xx_data, poll_work);
+
+    k_work_submit(&data->work);
+    k_work_schedule(&data->poll_work,
+                    K_MSEC(CONFIG_INPUT_AZOTEQ_IQS5XX_POLL_INTERVAL_MS));
+}
+
 static int iqs5xx_setup_device(const struct device *dev) {
     const struct iqs5xx_config *config = dev->config;
     int ret;
 
-    // Enable event mode and trackpad events.
-    ret = iqs5xx_write_reg8(dev, IQS5XX_SYSTEM_CONFIG_1,
-                            IQS5XX_EVENT_MODE | IQS5XX_TP_EVENT | IQS5XX_GESTURE_EVENT);
+    // In interrupt mode, use event mode so RDY only fires on new data.
+    // In polling mode, use streaming mode so we always get fresh data.
+    uint8_t sys_config_1 = IQS5XX_TP_EVENT | IQS5XX_GESTURE_EVENT;
+    if (config->rdy_gpio.port) {
+        sys_config_1 |= IQS5XX_EVENT_MODE;
+    }
+    ret = iqs5xx_write_reg8(dev, IQS5XX_SYSTEM_CONFIG_1, sys_config_1);
     if (ret < 0) {
-        LOG_ERR("Failed to configure event mode: %d", ret);
+        LOG_ERR("Failed to configure system config 1: %d", ret);
         return ret;
     }
 
@@ -359,29 +372,36 @@ static int iqs5xx_init(const struct device *dev) {
         k_msleep(10);
     }
 
-    // Configure RDY GPIO.
-    if (!gpio_is_ready_dt(&config->rdy_gpio)) {
-        LOG_ERR("RDY GPIO not ready");
-        return -ENODEV;
-    }
+    // Configure RDY GPIO if available, otherwise fall back to polling.
+    if (config->rdy_gpio.port) {
+        if (!gpio_is_ready_dt(&config->rdy_gpio)) {
+            LOG_ERR("RDY GPIO not ready");
+            return -ENODEV;
+        }
 
-    ret = gpio_pin_configure_dt(&config->rdy_gpio, GPIO_INPUT);
-    if (ret < 0) {
-        LOG_ERR("Failed to configure RDY GPIO: %d", ret);
-        return ret;
-    }
+        ret = gpio_pin_configure_dt(&config->rdy_gpio, GPIO_INPUT);
+        if (ret < 0) {
+            LOG_ERR("Failed to configure RDY GPIO: %d", ret);
+            return ret;
+        }
 
-    gpio_init_callback(&data->rdy_cb, iqs5xx_rdy_handler, BIT(config->rdy_gpio.pin));
-    ret = gpio_add_callback(config->rdy_gpio.port, &data->rdy_cb);
-    if (ret < 0) {
-        LOG_ERR("Failed to add RDY callback: %d", ret);
-        return ret;
-    }
+        gpio_init_callback(&data->rdy_cb, iqs5xx_rdy_handler, BIT(config->rdy_gpio.pin));
+        ret = gpio_add_callback(config->rdy_gpio.port, &data->rdy_cb);
+        if (ret < 0) {
+            LOG_ERR("Failed to add RDY callback: %d", ret);
+            return ret;
+        }
 
-    ret = gpio_pin_interrupt_configure_dt(&config->rdy_gpio, GPIO_INT_EDGE_RISING);
-    if (ret < 0) {
-        LOG_ERR("Failed to configure RDY interrupt: %d", ret);
-        return ret;
+        ret = gpio_pin_interrupt_configure_dt(&config->rdy_gpio, GPIO_INT_EDGE_RISING);
+        if (ret < 0) {
+            LOG_ERR("Failed to configure RDY interrupt: %d", ret);
+            return ret;
+        }
+        LOG_INF("IQS5xx using interrupt-driven mode (RDY GPIO)");
+    } else {
+        k_work_init_delayable(&data->poll_work, iqs5xx_poll_handler);
+        LOG_INF("IQS5xx using polling mode (%d ms interval)",
+                CONFIG_INPUT_AZOTEQ_IQS5XX_POLL_INTERVAL_MS);
     }
 
     // Wait for device to be ready.
@@ -392,6 +412,12 @@ static int iqs5xx_init(const struct device *dev) {
     if (ret < 0) {
         LOG_ERR("Failed to setup device: %d", ret);
         return ret;
+    }
+
+    // Start polling if no RDY GPIO is available.
+    if (!config->rdy_gpio.port) {
+        k_work_schedule(&data->poll_work,
+                        K_MSEC(CONFIG_INPUT_AZOTEQ_IQS5XX_POLL_INTERVAL_MS));
     }
 
     data->initialized = true;
@@ -405,7 +431,7 @@ static int iqs5xx_init(const struct device *dev) {
     static struct iqs5xx_data iqs5xx_data_##n;                                                     \
     static const struct iqs5xx_config iqs5xx_config_##n = {                                        \
         .i2c = I2C_DT_SPEC_INST_GET(n),                                                            \
-        .rdy_gpio = GPIO_DT_SPEC_INST_GET(n, rdy_gpios),                                           \
+        .rdy_gpio = GPIO_DT_SPEC_INST_GET_OR(n, rdy_gpios, {0}),                                    \
         .reset_gpio = GPIO_DT_SPEC_INST_GET_OR(n, reset_gpios, {0}),                               \
         .one_finger_tap = DT_INST_PROP(n, one_finger_tap),                                         \
         .press_and_hold = DT_INST_PROP(n, press_and_hold),                                         \
